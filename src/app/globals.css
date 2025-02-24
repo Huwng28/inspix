@@ -2,20 +2,33 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Đảm bảo container của Masonry hiển thị đúng */
+.masonry-grid {
+  display: flex;
+  margin-left: -16px; /* Giảm khoảng cách giữa các cột */
+  width: auto;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* Thiết lập chiều rộng của cột */
+.masonry-grid_column > div {
+  padding-left: 16px; /* Khoảng cách giữa các cột */
+  margin-bottom: 16px;
+  background-clip: padding-box;
 }
 
-body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+/* Đảm bảo ảnh không bị bóp méo */
+.masonry-grid img {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 8px;
 }
+
+.main-content {
+  margin-top: 64px; /* Đặt khoảng cách bằng với chiều cao Navbar */
+  padding: 16px; /* Giúp nội dung có khoảng cách với viền màn hình */
+}
+
+
+  
+
