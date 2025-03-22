@@ -15,6 +15,8 @@ interface ImageData {
   alt: string;
   userId?: string;
   collectionId?: string;
+  likes?: string[];
+  comments?: Comment[];
 }
 
 interface Comment {
@@ -39,20 +41,21 @@ interface Reply {
 interface ImageModalProps {
   image: ImageData;
   onClose: () => void;
+  onUpdate?: (updatedImage: ImageData) => void; // Add the callback prop
 }
 
-const ImageModal: React.FC<ImageModalProps> = ({ image, onClose }) => {
+const ImageModal: React.FC<ImageModalProps> = ({ image, onClose, onUpdate }) => {
   const { user } = useAuth();
-  const [likes, setLikes] = useState<string[]>([]);
+  const [likes, setLikes] = useState<string[]>(image.likes || []);
   const [hasLiked, setHasLiked] = useState(false);
-  const [comments, setComments] = useState<Comment[]>([]);
+  const [comments, setComments] = useState<Comment[]>(image.comments || []);
   const [replies, setReplies] = useState<Reply[]>([]);
   const [newComment, setNewComment] = useState("");
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editedCommentText, setEditedCommentText] = useState("");
   const [uploaderName, setUploaderName] = useState<string>("");
-  const [uploaderUsername, setUploaderUsername] = useState<string>(""); // Thêm state cho username
-  const [uploaderAvatar, setUploaderAvatar] = useState<string>(""); // Thêm state cho avatar
+  const [uploaderUsername, setUploaderUsername] = useState<string>("");
+  const [uploaderAvatar, setUploaderAvatar] = useState<string>("");
   const [uploaderId, setUploaderId] = useState<string>("");
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [newReply, setNewReply] = useState("");
@@ -90,7 +93,7 @@ const ImageModal: React.FC<ImageModalProps> = ({ image, onClose }) => {
           const userData = userSnap.data();
           setUploaderName(userData.firstName && userData.lastName ? `${userData.firstName} ${userData.lastName}` : "Người dùng ẩn danh");
           setUploaderUsername(userData.username || userData.email?.split("@")[0] || "unknown");
-          setUploaderAvatar(userData.avatar || ""); // Lấy avatar từ Firestore
+          setUploaderAvatar(userData.avatar || "");
           setUploaderId(image.userId);
         }
       }
@@ -110,6 +113,15 @@ const ImageModal: React.FC<ImageModalProps> = ({ image, onClose }) => {
 
     const userImageRef = doc(db, `users/${image.userId}/collections/${image.collectionId}/images/${image.id}`);
     await updateDoc(userImageRef, { likes: updatedLikes, comments: updatedComments });
+
+    // Update the parent state with the new data
+    if (onUpdate) {
+      onUpdate({
+        ...image,
+        likes: updatedLikes,
+        comments: updatedComments,
+      });
+    }
   };
 
   const handleLike = async () => {
@@ -264,7 +276,6 @@ const ImageModal: React.FC<ImageModalProps> = ({ image, onClose }) => {
           </svg>
         </button>
 
-        {/* Avatar, tên và username của user đăng ảnh */}
         <div className="absolute top-4 left-4 flex items-center space-x-3 z-10">
           <Link href={`/profile/${uploaderId}`}>
             <div className="w-10 h-10 bg-gray-300 rounded-full flex items-center justify-center text-xl font-bold overflow-hidden">
@@ -277,7 +288,7 @@ const ImageModal: React.FC<ImageModalProps> = ({ image, onClose }) => {
                   className="w-full h-full object-cover"
                 />
               ) : (
-                uploaderName.charAt(0) || "U" // Fallback nếu không có avatar
+                uploaderName.charAt(0) || "U"
               )}
             </div>
           </Link>
@@ -310,8 +321,7 @@ const ImageModal: React.FC<ImageModalProps> = ({ image, onClose }) => {
             <div className="flex items-center space-x-2">
               <button
                 onClick={handleLike}
-                className={`text-2xl transition-transform transform hover:scale-110 ${hasLiked ? "text-red-500" : "text-gray-400"
-                  }`}
+                className={`text-2xl transition-transform transform hover:scale-110 ${hasLiked ? "text-red-500" : "text-gray-400"}`}
               >
                 {hasLiked ? "❤️" : "🤍"}
               </button>

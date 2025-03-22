@@ -22,8 +22,8 @@ interface ImageData {
     alt: string;
     userId?: string;
     collectionId?: string;
-    likes?: string[]; // Thêm mảng likes
-    comments?: Comment[]; // Thêm mảng comments
+    likes?: string[];
+    comments?: Comment[];
 }
 
 interface UploadedImage {
@@ -35,8 +35,8 @@ interface UploadedImage {
     createdAt: Timestamp;
     userId: string;
     collectionId?: string;
-    likes: string[]; // Thêm mảng likes
-    comments: Comment[]; // Thêm mảng comments
+    likes: string[];
+    comments: Comment[];
 }
 
 export default function UploadedPage() {
@@ -78,23 +78,22 @@ export default function UploadedPage() {
                         createdAt: data.createdAt,
                         userId: data.userId || "unknown",
                         collectionId: data.collectionId || "",
-                        likes: data.likes || [], // Lấy mảng likes
-                        comments: data.comments || [], // Lấy mảng comments
+                        likes: data.likes || [],
+                        comments: data.comments || [],
                     };
                 });
 
                 const newImages: ImageData[] = imageList.map((img) => ({
-                    id: img.id, // Sử dụng Image ID
+                    id: img.id,
                     src: img.imageBase64,
                     fullSrc: img.imageBase64,
                     alt: img.title,
                     userId: img.userId,
                     collectionId: img.collectionId,
-                    likes: img.likes, // Truyền mảng likes
-                    comments: img.comments, // Truyền mảng comments
+                    likes: img.likes,
+                    comments: img.comments,
                 }));
 
-                // Loại bỏ trùng lặp bằng Map dựa trên id
                 setUploadedImages((prev) => {
                     const allImages = [...prev, ...newImages];
                     return Array.from(new Map(allImages.map((img) => [img.id, img])).values());
@@ -113,6 +112,13 @@ export default function UploadedPage() {
         },
         [hasMoreUploaded, isLoading]
     );
+
+    // Function to update the state with the modified image
+    const refreshImageData = useCallback((updatedImage: ImageData) => {
+        setUploadedImages((prev) =>
+            prev.map((img) => (img.id === updatedImage.id ? updatedImage : img))
+        );
+    }, []);
 
     useEffect(() => {
         if (uploadedImages.length === 0) {
@@ -147,6 +153,7 @@ export default function UploadedPage() {
                 <ImageModal
                     image={selectedImage}
                     onClose={() => setSelectedImage(null)}
+                    onUpdate={refreshImageData} // Pass the callback to ImageModal
                 />
             )}
             <div ref={observerRef} className="h-10">
