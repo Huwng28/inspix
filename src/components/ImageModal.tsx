@@ -8,17 +8,6 @@ import { useAuth } from "@/app/context/AuthContext";
 import { v4 as uuidv4 } from "uuid";
 import Link from "next/link";
 
-interface ImageData {
-  id: string;
-  src: string;
-  fullSrc: string;
-  alt: string;
-  userId?: string;
-  collectionId?: string;
-  likes?: string[];
-  comments?: Comment[];
-}
-
 interface Comment {
   id: string;
   text: string;
@@ -38,10 +27,21 @@ interface Reply {
   };
 }
 
+interface ImageData {
+  id: string;
+  src: string;
+  fullSrc: string;
+  alt: string;
+  userId?: string;
+  collectionId?: string;
+  likes?: string[];
+  comments?: Comment[];
+}
+
 interface ImageModalProps {
   image: ImageData;
   onClose: () => void;
-  onUpdate?: (updatedImage: ImageData) => void; // Add the callback prop
+  onUpdate?: (updatedImage: ImageData) => void;
 }
 
 const ImageModal: React.FC<ImageModalProps> = ({ image, onClose, onUpdate }) => {
@@ -50,6 +50,7 @@ const ImageModal: React.FC<ImageModalProps> = ({ image, onClose, onUpdate }) => 
   const [hasLiked, setHasLiked] = useState(false);
   const [comments, setComments] = useState<Comment[]>(image.comments || []);
   const [replies, setReplies] = useState<Reply[]>([]);
+  const [totalComments, setTotalComments] = useState<number>(0);
   const [newComment, setNewComment] = useState("");
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editedCommentText, setEditedCommentText] = useState("");
@@ -64,65 +65,89 @@ const ImageModal: React.FC<ImageModalProps> = ({ image, onClose, onUpdate }) => 
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
 
   const fetchImageData = useCallback(async () => {
-    if (!image?.id || !user?.uid) return;
+    if (!image?.id) return;
 
-    const publicImageRef = doc(db, `publicUploads/${image.id}`);
-    const publicImageSnap = await getDoc(publicImageRef);
+    try {
+      const publicImageRef = doc(db, `publicUploads/${image.id}`);
+      const publicImageSnap = await getDoc(publicImageRef);
 
-    if (publicImageSnap.exists()) {
-      const data = publicImageSnap.data();
-      const likesArray = data.likes || [];
-      const commentsArray = data.comments || [];
+      if (publicImageSnap.exists()) {
+        const data = publicImageSnap.data();
+        const likesArray = data.likes || [];
+        const commentsArray = data.comments || [];
 
-      setLikes(likesArray);
-      setHasLiked(user ? likesArray.includes(user.uid) : false);
-      setComments(commentsArray);
+        setLikes(likesArray);
+        setHasLiked(user ? likesArray.includes(user.uid) : false);
+        setComments(commentsArray);
 
-      const repliesRef = collection(db, `publicUploads/${image.id}/replies`);
-      const repliesSnap = await getDocs(repliesRef);
-      const repliesArray = repliesSnap.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as Reply[];
-      setReplies(repliesArray);
+        const repliesRef = collection(db, `publicUploads/${image.id}/replies`);
+        const repliesSnap = await getDocs(repliesRef);
+        const repliesArray = repliesSnap.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        })) as Reply[];
+        setReplies(repliesArray);
 
-      if (image.userId) {
-        const userRef = doc(db, `users/${image.userId}`);
-        const userSnap = await getDoc(userRef);
-        if (userSnap.exists()) {
-          const userData = userSnap.data();
-          setUploaderName(userData.firstName && userData.lastName ? `${userData.firstName} ${userData.lastName}` : "Người dùng ẩn danh");
-          setUploaderUsername(userData.username || userData.email?.split("@")[0] || "unknown");
-          setUploaderAvatar(userData.avatar || "");
-          setUploaderId(image.userId);
+        setTotalComments(commentsArray.length + repliesArray.length);
+
+        if (image.userId) {
+          const userRef = doc(db, `users/${image.userId}`);
+          const userSnap = await getDoc(userRef);
+          if (userSnap.exists()) {
+            const userData = userSnap.data();
+            setUploaderName(
+              userData.firstName && userData.lastName
+                ? `${userData.firstName} ${userData.lastName}`
+                : "Người dùng ẩn danh"
+            );
+            setUploaderUsername(userData.username || userData.email?.split("@")[0] || "unknown");
+            setUploaderAvatar(userData.avatar || "");
+            setUploaderId(image.userId);
+          }
         }
       }
+    } catch (error) {
+      console.error("❌ Lỗi khi lấy dữ liệu ảnh:", error);
     }
   }, [image?.id, image?.userId, user]);
 
   useEffect(() => {
-    if (!image?.id) return;
     fetchImageData();
-  }, [fetchImageData, image?.id]);
+  }, [fetchImageData]);
 
-  const updateBothDocuments = async (updatedLikes: string[], updatedComments: Comment[]) => {
-    if (!image?.id || !image?.userId || !image?.collectionId) return;
-
-    const publicImageRef = doc(db, `publicUploads/${image.id}`);
-    await updateDoc(publicImageRef, { likes: updatedLikes, comments: updatedComments });
-
-    const userImageRef = doc(db, `users/${image.userId}/collections/${image.collectionId}/images/${image.id}`);
-    await updateDoc(userImageRef, { likes: updatedLikes, comments: updatedComments });
-
-    // Update the parent state with the new data
+  const updateParent = useCallback(() => {
     if (onUpdate) {
       onUpdate({
         ...image,
-        likes: updatedLikes,
-        comments: updatedComments,
+        likes,
+        comments,
       });
     }
-  };
+  }, [onUpdate, image, likes, comments]);
+
+  const updateBothDocuments = useCallback(
+    async (updatedLikes: string[], updatedComments: Comment[]) => {
+      if (!image?.id || !image?.userId) return;
+
+      try {
+        const publicImageRef = doc(db, `publicUploads/${image.id}`);
+        await updateDoc(publicImageRef, { likes: updatedLikes, comments: updatedComments });
+
+        if (image.collectionId) {
+          const userImageRef = doc(
+            db,
+            `users/${image.userId}/collections/${image.collectionId}/images/${image.id}`
+          );
+          await updateDoc(userImageRef, { likes: updatedLikes, comments: updatedComments });
+        }
+
+        updateParent();
+      } catch (error) {
+        console.error("❌ Lỗi khi cập nhật dữ liệu:", error);
+      }
+    },
+    [image?.id, image?.userId, image?.collectionId, updateParent]
+  );
 
   const handleLike = async () => {
     if (!user) return alert("Bạn cần đăng nhập để thích ảnh!");
@@ -135,9 +160,9 @@ const ImageModal: React.FC<ImageModalProps> = ({ image, onClose, onUpdate }) => 
       updatedLikes.push(user.uid);
     }
 
-    await updateBothDocuments(updatedLikes, comments);
     setLikes(updatedLikes);
     setHasLiked(!hasLiked);
+    await updateBothDocuments(updatedLikes, comments);
   };
 
   const handleComment = async () => {
@@ -151,10 +176,10 @@ const ImageModal: React.FC<ImageModalProps> = ({ image, onClose, onUpdate }) => 
     };
 
     const updatedComments = [...comments, newCommentData];
-    await updateBothDocuments(likes, updatedComments);
-
-    setNewComment("");
     setComments(updatedComments);
+    setTotalComments(updatedComments.length + replies.length);
+    setNewComment("");
+    await updateBothDocuments(likes, updatedComments);
   };
 
   const handleReply = async (commentId: string) => {
@@ -171,7 +196,9 @@ const ImageModal: React.FC<ImageModalProps> = ({ image, onClose, onUpdate }) => 
     const repliesRef = collection(db, `publicUploads/${image.id}/replies`);
     await addDoc(repliesRef, replyData);
 
-    setReplies([...replies, replyData]);
+    const updatedReplies = [...replies, replyData];
+    setReplies(updatedReplies);
+    setTotalComments(comments.length + updatedReplies.length);
     setNewReply("");
     setReplyingTo(null);
   };
@@ -181,15 +208,17 @@ const ImageModal: React.FC<ImageModalProps> = ({ image, onClose, onUpdate }) => 
     if (!confirm("Bạn có chắc muốn xóa bình luận này?")) return;
 
     const updatedComments = comments.filter((comment) => comment.id !== commentId);
-    await updateBothDocuments(likes, updatedComments);
+    setComments(updatedComments);
 
     const repliesToDelete = replies.filter((reply) => reply.commentId === commentId);
     for (const reply of repliesToDelete) {
       await deleteDoc(doc(db, `publicUploads/${image.id}/replies/${reply.id}`));
     }
 
-    setComments(updatedComments);
-    setReplies(replies.filter((reply) => reply.commentId !== commentId));
+    const updatedReplies = replies.filter((reply) => reply.commentId !== commentId);
+    setReplies(updatedReplies);
+    setTotalComments(updatedComments.length + updatedReplies.length);
+    await updateBothDocuments(likes, updatedComments);
   };
 
   const handleEditComment = (comment: Comment) => {
@@ -204,11 +233,10 @@ const ImageModal: React.FC<ImageModalProps> = ({ image, onClose, onUpdate }) => 
     const updatedComments = comments.map((comment) =>
       comment.id === commentId ? { ...comment, text: editedCommentText } : comment
     );
-    await updateBothDocuments(likes, updatedComments);
-
+    setComments(updatedComments);
     setEditingCommentId(null);
     setEditedCommentText("");
-    setComments(updatedComments);
+    await updateBothDocuments(likes, updatedComments);
   };
 
   const handleCancelEdit = () => {
@@ -232,9 +260,7 @@ const ImageModal: React.FC<ImageModalProps> = ({ image, onClose, onUpdate }) => 
     const replyRef = doc(db, `publicUploads/${image.id}/replies/${replyId}`);
     await updateDoc(replyRef, { text: editedReplyText });
 
-    setReplies(
-      replies.map((r) => (r.id === replyId ? { ...r, text: editedReplyText } : r))
-    );
+    setReplies(replies.map((r) => (r.id === replyId ? { ...r, text: editedReplyText } : r)));
     setEditingReplyId(null);
     setEditedReplyText("");
   };
@@ -249,7 +275,9 @@ const ImageModal: React.FC<ImageModalProps> = ({ image, onClose, onUpdate }) => 
     if (!confirm("Bạn có chắc muốn xóa câu trả lời này?")) return;
 
     await deleteDoc(doc(db, `publicUploads/${image.id}/replies/${replyId}`));
-    setReplies(replies.filter((r) => r.id !== replyId));
+    const updatedReplies = replies.filter((r) => r.id !== replyId);
+    setReplies(updatedReplies);
+    setTotalComments(comments.length + updatedReplies.length);
     setMenuOpen(null);
   };
 
@@ -329,7 +357,7 @@ const ImageModal: React.FC<ImageModalProps> = ({ image, onClose, onUpdate }) => 
             </div>
             <div className="flex items-center space-x-2">
               <span className="text-gray-600">💬</span>
-              <span className="text-gray-600 font-medium">{comments.length}</span>
+              <span className="text-gray-600 font-medium">{totalComments}</span>
             </div>
           </div>
           <button
@@ -429,77 +457,75 @@ const ImageModal: React.FC<ImageModalProps> = ({ image, onClose, onUpdate }) => 
                         </button>
                       )}
 
-                      {replies
-                        .filter((reply) => reply.commentId === comment.id)
-                        .length > 0 && (
-                          <ul className="ml-6 mt-2 space-y-2">
-                            {replies
-                              .filter((reply) => reply.commentId === comment.id)
-                              .map((reply) => (
-                                <li key={reply.id} className="text-sm flex justify-between items-start">
-                                  {editingReplyId === reply.id ? (
-                                    <div className="w-full">
-                                      <input
-                                        type="text"
-                                        value={editedReplyText}
-                                        onChange={(e) => setEditedReplyText(e.target.value)}
-                                        className="border rounded-lg px-3 py-1 w-full focus:outline-none focus:ring-2 focus:ring-blue-300"
-                                      />
-                                      <div className="mt-2 flex space-x-2">
-                                        <button
-                                          onClick={() => handleSaveEditReply(reply.id)}
-                                          className="bg-green-500 text-white px-3 py-1 rounded-lg hover:bg-green-600 transition-colors"
-                                        >
-                                          Lưu
-                                        </button>
-                                        <button
-                                          onClick={handleCancelEditReply}
-                                          className="bg-gray-400 text-white px-3 py-1 rounded-lg hover:bg-gray-500 transition-colors"
-                                        >
-                                          Hủy
-                                        </button>
-                                      </div>
+                      {replies.filter((reply) => reply.commentId === comment.id).length > 0 && (
+                        <ul className="ml-6 mt-2 space-y-2">
+                          {replies
+                            .filter((reply) => reply.commentId === comment.id)
+                            .map((reply) => (
+                              <li key={reply.id} className="text-sm flex justify-between items-start">
+                                {editingReplyId === reply.id ? (
+                                  <div className="w-full">
+                                    <input
+                                      type="text"
+                                      value={editedReplyText}
+                                      onChange={(e) => setEditedReplyText(e.target.value)}
+                                      className="border rounded-lg px-3 py-1 w-full focus:outline-none focus:ring-2 focus:ring-blue-300"
+                                    />
+                                    <div className="mt-2 flex space-x-2">
+                                      <button
+                                        onClick={() => handleSaveEditReply(reply.id)}
+                                        className="bg-green-500 text-white px-3 py-1 rounded-lg hover:bg-green-600 transition-colors"
+                                      >
+                                        Lưu
+                                      </button>
+                                      <button
+                                        onClick={handleCancelEditReply}
+                                        className="bg-gray-400 text-white px-3 py-1 rounded-lg hover:bg-gray-500 transition-colors"
+                                      >
+                                        Hủy
+                                      </button>
                                     </div>
-                                  ) : (
-                                    <>
-                                      <div>
-                                        <span className="font-semibold text-gray-800">{reply.user.name}</span>
-                                        <span className="text-gray-600 ml-2">{reply.text}</span>
+                                  </div>
+                                ) : (
+                                  <>
+                                    <div>
+                                      <span className="font-semibold text-gray-800">{reply.user.name}</span>
+                                      <span className="text-gray-600 ml-2">{reply.text}</span>
+                                    </div>
+                                    {user && user.uid === reply.user.id && (
+                                      <div className="relative">
+                                        <button
+                                          onClick={() =>
+                                            setMenuOpen(menuOpen === reply.id ? null : reply.id)
+                                          }
+                                          className="text-gray-500 hover:text-gray-700"
+                                        >
+                                          ⋮
+                                        </button>
+                                        {menuOpen === reply.id && (
+                                          <div className="absolute right-0 mt-2 w-24 bg-white border rounded-lg shadow-lg z-10">
+                                            <button
+                                              onClick={() => handleEditReply(reply)}
+                                              className="block w-full text-left px-4 py-2 text-sm text-blue-500 hover:bg-gray-100"
+                                            >
+                                              Sửa
+                                            </button>
+                                            <button
+                                              onClick={() => handleDeleteReply(reply.id)}
+                                              className="block w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-gray-100"
+                                            >
+                                              Xóa
+                                            </button>
+                                          </div>
+                                        )}
                                       </div>
-                                      {user && user.uid === reply.user.id && (
-                                        <div className="relative">
-                                          <button
-                                            onClick={() =>
-                                              setMenuOpen(menuOpen === reply.id ? null : reply.id)
-                                            }
-                                            className="text-gray-500 hover:text-gray-700"
-                                          >
-                                            ⋮
-                                          </button>
-                                          {menuOpen === reply.id && (
-                                            <div className="absolute right-0 mt-2 w-24 bg-white border rounded-lg shadow-lg z-10">
-                                              <button
-                                                onClick={() => handleEditReply(reply)}
-                                                className="block w-full text-left px-4 py-2 text-sm text-blue-500 hover:bg-gray-100"
-                                              >
-                                                Sửa
-                                              </button>
-                                              <button
-                                                onClick={() => handleDeleteReply(reply.id)}
-                                                className="block w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-gray-100"
-                                              >
-                                                Xóa
-                                              </button>
-                                            </div>
-                                          )}
-                                        </div>
-                                      )}
-                                    </>
-                                  )}
-                                </li>
-                              ))}
-                          </ul>
-                        )}
+                                    )}
+                                  </>
+                                )}
+                              </li>
+                            ))}
+                        </ul>
+                      )}
 
                       {replyingTo === comment.id && (
                         <div className="mt-2 flex space-x-2">

@@ -105,7 +105,7 @@ const ProfilePage = () => {
         imageList.push({
           id: doc.id,
           imageBase64: data.imageBase64 || "",
-          title: data.title,
+          title: data.title || "Không có tiêu đề",
           description: data.description || "",
           link: data.link || "",
           userId: data.userId || userId,
@@ -242,6 +242,17 @@ const ProfilePage = () => {
                       className="w-full h-32 object-cover rounded-md"
                     />
                     <p className="text-center mt-2 font-medium">{image.title}</p>
+                    {/* Hiển thị số lượt thích và bình luận */}
+                    <div className="flex justify-center space-x-4 mt-1 text-gray-600 text-sm">
+                      <div className="flex items-center space-x-1">
+                        <span>❤️</span>
+                        <span>{image.likes.length}</span>
+                      </div>
+                      <div className="flex items-center space-x-1">
+                        <span>💬</span>
+                        <span>{image.comments.length}</span>
+                      </div>
+                    </div>
                   </div>
                 ))
               ) : (
