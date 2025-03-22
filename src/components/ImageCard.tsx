@@ -21,8 +21,8 @@ const ImageCard: React.FC<ImageCardProps> = ({ imageUrl }) => {
     console.log("🔹 User hiện tại:", user); // ✅ In ra console để debug
 
     if (!user) {
-      console.log("🚨 Chưa đăng nhập! Chuyển hướng sang /login");
-      router.push("/login"); // 🚀 Nếu chưa đăng nhập, chuyển đến trang login
+      console.log(" Chưa đăng nhập! Chuyển hướng sang /login");
+      router.push("/login"); //  Nếu chưa đăng nhập, chuyển đến trang login
       return;
     }
 
@@ -51,8 +51,7 @@ const ImageCard: React.FC<ImageCardProps> = ({ imageUrl }) => {
           height={400}
           quality={80} // ⚡ Bây giờ sẽ có hiệu lực
           className="w-full rounded-lg shadow-lg"
-          priority // ⚡ Tự động tải trước, không cần `loading="eager"`
-          placeholder="blur" // ⚡ Hiển thị ảnh mờ trước khi tải đầy đủ
+          priority // ⚡ Tự động tải trước, không cần `loading="eager"`         
         />
 
 

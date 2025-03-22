@@ -110,16 +110,7 @@ const SaveModal: React.FC<SaveModalProps> = ({ imageUrl, onClose }) => {
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       {showCreateModal ? (
         <div className="bg-white p-6 rounded-lg shadow-lg w-[500px] flex relative">
-          <Image
-            src={imageUrl}
-            alt="Ảnh"
-            width={300}
-            height={400}
-            quality={80} // ⚡ Bây giờ sẽ có hiệu lực
-            className="w-full rounded-lg shadow-lg"
-            priority // ⚡ Tự động tải trước, không cần `loading="eager"`
-            placeholder="blur" // ⚡ Hiển thị ảnh mờ trước khi tải đầy đủ
-          />
+          <Image src={imageUrl} alt="Preview" width={200} height={200} className="rounded-md" priority />
 
 
           <div className="ml-4 flex-1">

@@ -3,9 +3,11 @@
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { FiSearch, FiMenu, FiX , FiHome, FiUser ,  FiLogOut } from "react-icons/fi"; // Import icon
+import { FiSearch, FiMenu, FiX, FiHome, FiUser, FiLogOut } from "react-icons/fi"; // Import icon
+import { CgAddR } from "react-icons/cg";
 import { getAuth, onAuthStateChanged, signOut } from "firebase/auth";
 import { User } from "firebase/auth";
+import { MdOutlineExplore } from "react-icons/md";
 
 
 // Danh sách gợi ý có sẵn
@@ -94,8 +96,8 @@ export default function Navbar() {
     <nav className="fixed top-0 left-0 w-full bg-white shadow-md py-2 px-4 flex justify-between items-center z-50">
 
       {/* ✅ Logo */}
-      <Link href="/" className="text-2xl font-bold text-red-500">
-        Pinterest Clone
+      <Link href="/" className="text-2xl font-bold text-blue-500">
+        Inspix
       </Link>
 
       {/* ✅ Search Bar */}
@@ -109,8 +111,8 @@ export default function Navbar() {
             className="w-full p-2 border border-gray-300 rounded-full outline-none px-4 pr-10 focus:ring-2 focus:ring-blue-300"
           />
 
-           {/* Nút xóa */}
-           {searchQuery && (
+          {/* Nút xóa */}
+          {searchQuery && (
             <button
               type="button"
               onClick={clearSearch}
@@ -143,32 +145,38 @@ export default function Navbar() {
         <Link href="/" className="text-gray-600 hover:text-black">
           <FiHome size={24} />
         </Link>
+        <Link href="/uploaded" className="text-gray-600 hover:text-black">
+          <MdOutlineExplore size={24} />
+        </Link>
+        <Link href="/upload" className="text-gray-600 hover:text-black">
+          <CgAddR size={24} />
+        </Link>
         <Link href="/personal" className="text-gray-600 hover:text-black">
           <FiUser size={24} />
         </Link>
+
         {user && (
           <button onClick={handleLogout} className="text-gray-600 hover:text-black">
             <FiLogOut size={24} />
           </button>
         )}
-      </div>   
-       
+      </div>
+
 
       {/* ✅ Hamburger Menu trên mobile */}
       <button className="md:hidden text-gray-600 text-2xl" onClick={toggleMenu}>
         {menuOpen ? <FiX /> : <FiMenu />}
       </button>
 
-      
-       {/* ✅ Menu Mobile */}
-       {menuOpen && (
+
+      {/* ✅ Menu Mobile */}
+      {menuOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-40" onClick={toggleMenu} />
       )}
 
       <div
-        className={`fixed top-0 right-0 h-full w-64 bg-white shadow-lg z-50 transform ${
-          menuOpen ? "translate-x-0" : "translate-x-full"
-        } transition-transform`}
+        className={`fixed top-0 right-0 h-full w-64 bg-white shadow-lg z-50 transform ${menuOpen ? "translate-x-0" : "translate-x-full"
+          } transition-transform`}
       >
         <button className="absolute top-4 right-4 text-2xl" onClick={toggleMenu}>
           <FiX />
@@ -194,7 +202,7 @@ export default function Navbar() {
               <FiUser size={24} />
               <span>
                 Cá nhân
-                </span>
+              </span>
             </Link>
           </li>
           {user && (

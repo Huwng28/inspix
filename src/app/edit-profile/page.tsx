@@ -1,62 +1,112 @@
-"use client"; // Đánh dấu component là client-side, nghĩa là component này chạy trên trình duyệt
+"use client";
 
-import { useEffect, useState } from "react"; // Import các hook cần thiết của React
-import { useRouter } from "next/navigation"; // Import next/router cho Pages Router
-import { auth, db } from "@/lib/firebaseConfig"; // Import cấu hình Firebase
-import { onAuthStateChanged, updateProfile, User } from "firebase/auth"; // Import các hàm từ Firebase auth
-import { doc, getDoc, setDoc } from "firebase/firestore"; // Import các hàm từ Firestore
-import Image from "next/image"; // Import Image từ Next.js
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { auth, db } from "@/lib/firebaseConfig";
+import { onAuthStateChanged, updateProfile, User } from "firebase/auth";
+import { doc, getDoc, setDoc } from "firebase/firestore";
+import Image from "next/image";
 
 const EditProfile = () => {
-  const [user, setUser] = useState<User | null>(null); // State lưu thông tin người dùng
-  const [firstName, setFirstName] = useState(""); // State lưu tên người dùng
-  const [lastName, setLastName] = useState(""); // State lưu họ người dùng
-  const [bio, setBio] = useState(""); // State lưu tiểu sử
-  const [website, setWebsite] = useState(""); // State lưu website
-  const [photoURL, setPhotoURL] = useState(""); // State lưu URL ảnh đại diện
-  const router = useRouter(); // Sử dụng router để điều hướng trang
+  const [user, setUser] = useState<User | null>(null);
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [bio, setBio] = useState("");
+  const [photoURL, setPhotoURL] = useState("");
+  const router = useRouter();
 
-  // Lấy dữ liệu người dùng từ Firestore
+  // Hàm nén ảnh và chuyển thành base64
+  const compressImage = (file: File): Promise<string> => {
+    return new Promise((resolve) => {
+      const img = document.createElement("img");
+      const reader = new FileReader();
+
+      reader.onload = (e) => {
+        img.src = e.target?.result as string;
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          const ctx = canvas.getContext("2d");
+          const MAX_WIDTH = 800;
+          const MAX_HEIGHT = 800;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height *= MAX_WIDTH / width;
+              width = MAX_WIDTH;
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width *= MAX_HEIGHT / height;
+              height = MAX_HEIGHT;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          ctx?.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL("image/jpeg", 0.8)); // Chuyển thành base64 với chất lượng 80%
+        };
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (!currentUser) {
-        router.push("/login"); // Nếu người dùng chưa đăng nhập, chuyển hướng đến trang login
+        router.push("/login");
       } else {
-        setUser(currentUser); // Cập nhật state với thông tin người dùng
-        const userDoc = await getDoc(doc(db, "users", currentUser.uid)); // Lấy dữ liệu người dùng từ Firestore
+        setUser(currentUser);
+        const userDoc = await getDoc(doc(db, "users", currentUser.uid));
         if (userDoc.exists()) {
           const data = userDoc.data();
-          setFirstName(data.firstName || ""); // Cập nhật tên
-          setLastName(data.lastName || ""); // Cập nhật họ
-          setBio(data.bio || ""); // Cập nhật tiểu sử
-          setWebsite(data.website || ""); // Cập nhật website
-          setPhotoURL(data.photoURL || currentUser.photoURL || ""); // Cập nhật ảnh đại diện
+          setFirstName(data.firstName || "");
+          setLastName(data.lastName || "");
+          setBio(data.bio || "");
+          setPhotoURL(data.avatar || ""); // Lấy từ trường avatar trong Firestore
         }
       }
     });
 
-    return () => unsubscribe(); // Dọn dẹp khi component bị unmount
+    return () => unsubscribe();
   }, [router]);
 
-  // Xử lý cập nhật thông tin người dùng
+  // Xử lý khi chọn ảnh mới
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const compressedImage = await compressImage(file);
+      setPhotoURL(compressedImage); // Hiển thị ảnh preview
+    }
+  };
+
   const handleSave = async () => {
-    if (!user) return; // Nếu không có người dùng thì không làm gì
+    if (!user) return;
     try {
-      await setDoc(doc(db, "users", user.uid), {
-        firstName, // Cập nhật thông tin người dùng
+      // Chuẩn bị dữ liệu để lưu vào Firestore
+      const updatedData = {
+        firstName,
         lastName,
         bio,
-        website,
-        photoURL,
-        username: user.email?.split("@")[0], // Username không thay đổi
+        username: user.email?.split("@")[0],
+        avatar: photoURL, // Lưu ảnh dưới dạng base64 vào trường avatar trong Firestore
+      };
+
+      // Lưu dữ liệu vào Firestore
+      await setDoc(doc(db, "users", user.uid), updatedData);
+
+      // Cập nhật profile của user trong Firebase Auth (chỉ cập nhật displayName)
+      await updateProfile(user, {
+        displayName: `${firstName} ${lastName}`,
+        // Không cập nhật photoURL vì chuỗi base64 quá dài
       });
 
-      await updateProfile(user, { displayName: `${firstName} ${lastName}`, photoURL }); // Cập nhật displayName và photoURL
-
-      alert("Cập nhật thành công!"); // Thông báo khi thành công
-      router.push("/personal"); // Chuyển hướng về trang cá nhân
+      alert("Cập nhật thành công!");
+      router.push("/personal");
     } catch (error) {
-      console.error("Lỗi cập nhật:", error); // Xử lý lỗi nếu có
+      console.error("Lỗi cập nhật:", error);
     }
   };
 
@@ -66,23 +116,29 @@ const EditProfile = () => {
       <p className="text-gray-600 mb-4">Hãy giữ riêng tư thông tin cá nhân của bạn.</p>
 
       {/* Ảnh đại diện */}
-      <div className="flex items-center mb-4">
-        <div className="w-20 h-20 bg-gray-300 rounded-full flex items-center justify-center text-2xl font-bold">
+      <div className="flex items-center mb-4 gap-4">
+        <div className="w-20 h-20 bg-gray-300 rounded-full flex items-center justify-center text-2xl font-bold overflow-hidden">
           {photoURL ? (
             <Image
-              src={photoURL || "/default-avatar.png"} // Nếu không có ảnh, dùng ảnh mặc định
+              src={photoURL}
               alt="Avatar"
               width={80}
               height={80}
-              className="rounded-full"
+              className="object-cover"
             />
           ) : (
-            user?.displayName?.charAt(0) || "U" // Nếu không có ảnh, hiển thị chữ cái đầu tiên của tên
+            user?.displayName?.charAt(0) || "U"
           )}
         </div>
-        <button className="ml-4 px-4 py-2 bg-gray-300 rounded hover:bg-gray-400">
-          Thay đổi
-        </button>
+        <label className="cursor-pointer bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+          Thay đổi ảnh
+          <input
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleAvatarChange}
+          />
+        </label>
       </div>
 
       {/* Nhập thông tin */}
@@ -92,29 +148,38 @@ const EditProfile = () => {
           placeholder="Tên"
           className="w-1/2 p-2 border rounded"
           value={firstName}
-          onChange={(e) => setFirstName(e.target.value)} // Cập nhật state khi người dùng nhập tên
+          onChange={(e) => setFirstName(e.target.value)}
         />
         <input
           type="text"
           placeholder="Họ"
           className="w-1/2 p-2 border rounded"
           value={lastName}
-          onChange={(e) => setLastName(e.target.value)} // Cập nhật state khi người dùng nhập họ
+          onChange={(e) => setLastName(e.target.value)}
         />
       </div>
 
-      {/* Username (Không chỉnh sửa) */}
+      {/* Tiểu sử */}
+      <textarea
+        placeholder="Giới thiệu bản thân"
+        className="w-full p-2 border rounded mb-4"
+        value={bio}
+        onChange={(e) => setBio(e.target.value)}
+        rows={3}
+        maxLength={160}
+      />
+
+      {/* Username */}
       <input
         type="text"
         className="w-full p-2 border rounded mb-4 bg-gray-100"
-        value={user?.email?.split("@")[0] || ""} // Username lấy từ email, không cho phép chỉnh sửa
+        value={user?.email?.split("@")[0] || ""}
         readOnly
       />
 
-      {/* Nút Lưu */}
       <div className="flex gap-4">
         <button
-          onClick={handleSave} // Khi nhấn lưu, gọi hàm handleSave
+          onClick={handleSave}
           className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
         >
           Lưu

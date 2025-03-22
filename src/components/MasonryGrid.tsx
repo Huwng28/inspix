@@ -72,9 +72,8 @@ function ImageCard({
           alt={image.alt}
           width={300}
           height={400}
-          className={`w-full h-auto rounded-lg transition-transform duration-300 ease-in-out group-hover:scale-105 ${
-            loading ? "opacity-0" : "opacity-100"
-          }`}
+          className={`w-full h-auto rounded-lg transition-transform duration-300 ease-in-out group-hover:scale-105 ${loading ? "opacity-0" : "opacity-100"
+            }`}
           onLoad={() => setLoading(false)}
         />
 
