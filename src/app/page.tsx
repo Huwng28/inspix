@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import MasonryGrid from "@/components/MasonryGrid";
 import ImageModal from "@/components/ImageModal";
@@ -25,11 +25,12 @@ interface UnsplashResponse {
   results?: UnsplashImage[];
 }
 
-export default function HomePage() {
+// Component để xử lý logic chính
+function HomePageContent() {
   const [images, setImages] = useState<ImageData[]>([]);
   const [page, setPage] = useState(1);
   const [hasMoreUnsplash, setHasMoreUnsplash] = useState(true);
-  const [selectedImage, setSelectedImage] = useState<ImageData | null>(null);
+  const [selectedImage, setSelectedImage] = useState<ImageData | null>(null); // Sửa ở đây
   const [isLoading, setIsLoading] = useState(false);
   const observerRef = useRef<HTMLDivElement | null>(null);
   const searchParams = useSearchParams();
@@ -115,5 +116,14 @@ export default function HomePage() {
         {!hasMoreUnsplash && <p className="text-center text-gray-500"></p>}
       </div>
     </div>
+  );
+}
+
+// Export component chính với Suspense
+export default function HomePage() {
+  return (
+    <Suspense fallback={<div>Đang tải...</div>}>
+      <HomePageContent />
+    </Suspense>
   );
 }
