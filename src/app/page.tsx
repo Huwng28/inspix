@@ -1,7 +1,8 @@
-"use client";
+"use client"; // Đảm bảo code này chỉ chạy trên client-side
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
+import { Suspense } from "react"; // Thêm Suspense để bao bọc useSearchParams
 import MasonryGrid from "@/components/MasonryGrid";
 import ImageModal from "@/components/ImageModal";
 
@@ -25,7 +26,8 @@ interface UnsplashResponse {
   results?: UnsplashImage[];
 }
 
-export default function HomePage() {
+// Component nội bộ chứa logic chính
+function HomePageContent() {
   const [images, setImages] = useState<ImageData[]>([]);
   const [page, setPage] = useState(1);
   const [hasMoreUnsplash, setHasMoreUnsplash] = useState(true);
@@ -53,14 +55,14 @@ export default function HomePage() {
       if (!res.ok) throw new Error(`Lỗi API: ${res.status}`);
       const data: UnsplashResponse = await res.json();
 
-      const newImages: ImageData[] = (Array.isArray(data) ? data : data.results || []).map(
-        (img: UnsplashImage) => ({
-          id: img.id,
-          src: img.urls.small,
-          fullSrc: img.urls.full,
-          alt: img.alt_description || "Image",
-        })
-      );
+      const newImages: ImageData[] = (
+        Array.isArray(data) ? data : data.results || []
+      ).map((img: UnsplashImage) => ({
+        id: img.id,
+        src: img.urls.small,
+        fullSrc: img.urls.full,
+        alt: img.alt_description || "Image",
+      }));
 
       setImages((prev) => {
         const allImages = [...prev, ...newImages];
@@ -75,16 +77,18 @@ export default function HomePage() {
     }
   }, [page, searchQuery, API_KEY, hasMoreUnsplash, isLoading]);
 
+  // Fetch ảnh khi searchQuery hoặc page thay đổi
   useEffect(() => {
     fetchImages();
   }, [fetchImages]);
 
+  // Thiết lập IntersectionObserver cho infinite scroll
   useEffect(() => {
     if (!observerRef.current) return;
 
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && hasMoreUnsplash) {
+        if (entries[0].isIntersecting && hasMoreUnsplash && !isLoading) {
           setPage((prevPage) => prevPage + 1);
         }
       },
@@ -93,7 +97,7 @@ export default function HomePage() {
 
     observer.observe(observerRef.current);
     return () => observer.disconnect();
-  }, [hasMoreUnsplash]);
+  }, [hasMoreUnsplash, isLoading]);
 
   return (
     <div className="min-h-screen bg-gray-100 p-4">
@@ -111,9 +115,20 @@ export default function HomePage() {
         />
       )}
       <div ref={observerRef} className="h-10">
-        {hasMoreUnsplash && <p className="text-center text-gray-500"></p>}
-        {!hasMoreUnsplash && <p className="text-center text-gray-500"></p>}
+        {isLoading && <p className="text-center text-gray-500">Đang tải...</p>}
+        {!hasMoreUnsplash && !isLoading && (
+          <p className="text-center text-gray-500">Không còn ảnh để tải</p>
+        )}
       </div>
     </div>
+  );
+}
+
+// Component chính bao bọc bằng Suspense
+export default function HomePage() {
+  return (
+    <Suspense fallback={<div className="text-center p-4">Đang tải...</div>}>
+      <HomePageContent />
+    </Suspense>
   );
 }
