@@ -92,7 +92,7 @@ const ProfilePage = () => {
             const firstImageDoc = imagesSnapshot.docs[0];
             const imageData = firstImageDoc.data();
             console.log("📸 Dữ liệu ảnh đầu tiên:", imageData);
-            previewImage = imageData.imageBase64 || imageData.url || undefined; // Kiểm tra cả trường url nếu imageBase64 không tồn tại
+            previewImage = imageData.imageBase64 || imageData.url || undefined;
             console.log("🖼️ Preview image:", previewImage);
           } else {
             console.log(`⚠️ Bộ sưu tập ${docSnapshot.id} không có ảnh.`);

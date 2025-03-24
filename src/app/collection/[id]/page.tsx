@@ -14,7 +14,8 @@ const CollectionDetail = () => {
   const [images, setImages] = useState<{ id: string; url: string }[]>([]);
   const [collectionName, setCollectionName] = useState("");
   const [hoveredImage, setHoveredImage] = useState<string | null>(null);
-  const [selectedImage, setSelectedImage] = useState<string | null>(null); // 🔥 State mở modal
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [isDownloading, setIsDownloading] = useState(false); // Trạng thái tải
 
   useEffect(() => {
     if (!id) {
@@ -69,6 +70,32 @@ const CollectionDetail = () => {
     }
   };
 
+  // Hàm tải ảnh
+  const handleDownload = async () => {
+    if (!selectedImage) return;
+
+    try {
+      setIsDownloading(true);
+      const response = await fetch(selectedImage, { mode: "cors" });
+      if (!response.ok) throw new Error("Không thể tải ảnh");
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `image.${blob.type.split("/")[1] || "jpg"}`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Lỗi khi tải ảnh:", error);
+      alert("Không thể tải ảnh do lỗi CORS hoặc kết nối. Vui lòng thử lại!");
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
   useEffect(() => {
     if (id) fetchCollection();
   }, [id, fetchCollection]);
@@ -96,7 +123,7 @@ const CollectionDetail = () => {
                 className="relative group overflow-hidden rounded-lg shadow-md cursor-pointer"
                 onMouseEnter={() => setHoveredImage(image.id)}
                 onMouseLeave={() => setHoveredImage(null)}
-                onClick={() => setSelectedImage(image.url)} // 🔥 Nhấn vào ảnh để mở modal
+                onClick={() => setSelectedImage(image.url)}
               >
                 <Image
                   src={image.url}
@@ -110,7 +137,7 @@ const CollectionDetail = () => {
                 {hoveredImage === image.id && (
                   <button
                     onClick={(e) => {
-                      e.stopPropagation(); // 🔥 Ngăn sự kiện click lan ra modal
+                      e.stopPropagation();
                       deleteImage(image.id);
                     }}
                     className="absolute top-2 right-2 bg-red-500 text-white px-2 py-1 rounded opacity-80 hover:opacity-100"
@@ -126,35 +153,73 @@ const CollectionDetail = () => {
         </div>
       </div>
 
-      {/* 🔥 Modal hiển thị ảnh lớn (Theo yêu cầu) */}
+      {/* Modal hiển thị ảnh lớn */}
       {selectedImage && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-75 flex justify-center items-center z-50"
-          onClick={() => setSelectedImage(null)} // 🔥 Click ngoài để đóng modal
-        >
-          <div className="relative max-w-[90vw] max-h-[80vh]">
-            {/* ✅ Ảnh tự động co lại nếu quá to */}
-            <Image
-              src={selectedImage}
-              alt="Ảnh lớn"
-              width={0} // Next.js sẽ tự động tính toán kích thước
-              height={0}
-              sizes="90vw"
-              className="w-auto h-auto max-w-[90vw] max-h-[80vh] object-contain rounded-lg"
-              quality={80}
-              priority
-            />
+        <div className="fixed inset-0 bg-black bg-opacity-90 flex justify-center items-center z-50 p-4">
+          <div className="relative w-full h-full max-h-[80vh] flex items-center justify-center">
+            <div className="relative w-auto h-auto max-h-[80vh] flex items-center justify-center">
+              <Image
+                src={selectedImage}
+                alt="Ảnh lớn"
+                width={0}
+                height={0}
+                sizes="100vw"
+                className="w-auto h-auto max-h-[80vh] object-contain"
+                priority
+              />
 
-            {/* ✅ Nút đóng (✖) gắn vào góc trên bên phải của ảnh */}
-            <button
-              className="absolute top-1 right-1 translate-x-1/2 -translate-y-1/2 text-white px-3 py-1 rounded-full z-10"
-              onClick={(e) => {
-                e.stopPropagation(); // 🔥 Ngăn đóng modal khi click vào nút
-                setSelectedImage(null);
-              }}
-            >
-              ✖
-            </button>
+              {/* Container cho 2 nút, góc trên bên phải */}
+              <div className="absolute top-2 right-2 flex space-x-2">
+                {/* Nút tải ảnh */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDownload();
+                  }}
+                  disabled={isDownloading}
+                  className="text-white hover:text-gray-300 transition-colors bg-black bg-opacity-50 rounded-full p-1"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-6 w-6"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                    />
+                  </svg>
+                </button>
+
+                {/* Nút đóng */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedImage(null);
+                  }}
+                  className="text-white hover:text-gray-300 transition-colors bg-black bg-opacity-50 rounded-full p-1"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-6 w-6"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
