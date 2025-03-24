@@ -18,8 +18,8 @@ interface UploadedImage {
   link: string;
   userId?: string;
   collectionId?: string;
-  likes: string[]; // Thêm trường likes
-  comments: { id: string; text: string; user: { id: string; name: string } }[]; // Thêm trường comments
+  likes: string[];
+  comments: { id: string; text: string; user: { id: string; name: string } }[];
 }
 
 interface ImageData {
@@ -51,7 +51,6 @@ const ProfilePage = () => {
         router.push("/login");
       } else {
         setUser(currentUser);
-        // Lấy dữ liệu user từ Firestore để lấy avatar, tên, và username
         const userDoc = await getDoc(doc(db, "users", currentUser.uid));
         if (userDoc.exists()) {
           const data = userDoc.data();
@@ -70,23 +69,45 @@ const ProfilePage = () => {
 
   const fetchCollections = async (userId: string) => {
     try {
+      console.log("🔍 Bắt đầu lấy bộ sưu tập cho userId:", userId);
       const q = query(collection(db, "users", userId, "collections"));
       const querySnapshot = await getDocs(q);
-      const data = await Promise.all(
-        querySnapshot.docs.map(async (doc) => {
-          const imagesRef = collection(db, "users", userId, "collections", doc.id, "images");
-          const imagesSnapshot = await getDocs(imagesRef);
+      console.log("📁 Số bộ sưu tập tìm thấy:", querySnapshot.size);
 
-          const firstImage = imagesSnapshot.docs.length > 0 ? imagesSnapshot.docs[0].data().imageBase64 : null;
+      if (querySnapshot.empty) {
+        console.log("⚠️ Không có bộ sưu tập nào.");
+        setCollections([]);
+        return;
+      }
+
+      const collectionData = await Promise.all(
+        querySnapshot.docs.map(async (docSnapshot) => {
+          console.log("📂 Đang xử lý bộ sưu tập:", docSnapshot.id, docSnapshot.data().name);
+          const imagesRef = collection(db, "users", userId, "collections", docSnapshot.id, "images");
+          const imagesSnapshot = await getDocs(imagesRef);
+          console.log(`🖼️ Số ảnh trong bộ sưu tập ${docSnapshot.id}:`, imagesSnapshot.size);
+
+          let previewImage: string | undefined;
+          if (!imagesSnapshot.empty) {
+            const firstImageDoc = imagesSnapshot.docs[0];
+            const imageData = firstImageDoc.data();
+            console.log("📸 Dữ liệu ảnh đầu tiên:", imageData);
+            previewImage = imageData.imageBase64 || imageData.url || undefined; // Kiểm tra cả trường url nếu imageBase64 không tồn tại
+            console.log("🖼️ Preview image:", previewImage);
+          } else {
+            console.log(`⚠️ Bộ sưu tập ${docSnapshot.id} không có ảnh.`);
+          }
 
           return {
-            id: doc.id,
-            name: doc.data().name,
-            previewImage: firstImage || undefined,
+            id: docSnapshot.id,
+            name: docSnapshot.data().name || "Bộ sưu tập không tên",
+            previewImage: previewImage,
           };
         })
       );
-      setCollections(data);
+
+      console.log("📦 Dữ liệu bộ sưu tập cuối cùng:", collectionData);
+      setCollections(collectionData);
     } catch (error) {
       console.error("❌ Lỗi khi lấy bộ sưu tập:", error);
     }
@@ -95,10 +116,9 @@ const ProfilePage = () => {
   const fetchUploadedImages = async (userId: string) => {
     try {
       const imageList: UploadedImage[] = [];
-      console.log("🔍 Đang lấy ảnh từ publicUploads cho userId:", userId);
       const q = query(collection(db, "publicUploads"), where("userId", "==", userId));
       const querySnapshot = await getDocs(q);
-      console.log("🔍 Số ảnh tìm thấy:", querySnapshot.size);
+      console.log("🔍 Số ảnh tìm thấy trong publicUploads:", querySnapshot.size);
 
       querySnapshot.forEach((doc) => {
         const data = doc.data();
@@ -110,8 +130,8 @@ const ProfilePage = () => {
           link: data.link || "",
           userId: data.userId || userId,
           collectionId: data.collectionId || "",
-          likes: data.likes || [], // Lấy số lượt thích
-          comments: data.comments || [], // Lấy danh sách bình luận
+          likes: data.likes || [],
+          comments: data.comments || [],
         });
       });
 
@@ -122,7 +142,6 @@ const ProfilePage = () => {
   };
 
   const openImageModal = (image: UploadedImage) => {
-    console.log("🔍 Mở ImageModal với Image ID:", image.id);
     const imageData: ImageData = {
       id: image.id,
       src: image.imageBase64,
@@ -192,34 +211,38 @@ const ProfilePage = () => {
         {activeTab === "saved" && (
           <>
             <h2 className="text-lg font-semibold mb-4">📁 Bộ sưu tập</h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {collections.map((col) => (
-                <Link key={col.id} href={`/collection/${col.id}`}>
-                  <div className="relative bg-gray-100 rounded-lg p-2 shadow-md">
-                    {col.previewImage ? (
-                      <Image
-                        src={col.previewImage}
-                        alt={`Bộ sưu tập ${col.name}`}
-                        width={200}
-                        height={200}
-                        className="w-full h-32 object-cover rounded-md"
-                      />
-                    ) : (
-                      <div className="w-full h-32 bg-gray-200 rounded-md flex items-center justify-center text-gray-500">
-                        Chưa có ảnh
-                      </div>
-                    )}
-                    <p className="text-center mt-2 font-medium">{col.name}</p>
-                  </div>
-                </Link>
-              ))}
-              <button
-                className="w-full h-32 bg-gray-100 rounded-lg flex items-center justify-center text-3xl font-bold text-gray-500 hover:bg-gray-200 transition"
-                onClick={() => setIsModalOpen(true)}
-              >
-                +
-              </button>
-            </div>
+            {collections.length === 0 ? (
+              <div className="text-center text-gray-500">Chưa có bộ sưu tập nào.</div>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {collections.map((col) => (
+                  <Link key={col.id} href={`/collection/${col.id}`}>
+                    <div className="relative bg-gray-100 rounded-lg p-2 shadow-md hover:shadow-lg transition">
+                      {col.previewImage ? (
+                        <Image
+                          src={col.previewImage}
+                          alt={`Ảnh xem trước cho ${col.name}`}
+                          width={200}
+                          height={200}
+                          className="w-full h-32 object-cover rounded-md"
+                        />
+                      ) : (
+                        <div className="w-full h-32 bg-gray-200 rounded-md flex items-center justify-center text-gray-500">
+                          Chưa có ảnh
+                        </div>
+                      )}
+                      <p className="text-center mt-2 font-medium truncate">{col.name}</p>
+                    </div>
+                  </Link>
+                ))}
+                <button
+                  className="w-full h-32 bg-gray-100 rounded-lg flex items-center justify-center text-3xl font-bold text-gray-500 hover:bg-gray-200 transition"
+                  onClick={() => setIsModalOpen(true)}
+                >
+                  +
+                </button>
+              </div>
+            )}
           </>
         )}
 
@@ -231,7 +254,7 @@ const ProfilePage = () => {
                 uploadedImages.map((image) => (
                   <div
                     key={image.id}
-                    className="relative bg-gray-100 rounded-lg p-2 shadow-md cursor-pointer"
+                    className="relative bg-gray-100 rounded-lg p-2 shadow-md cursor-pointer hover:shadow-lg transition"
                     onClick={() => openImageModal(image)}
                   >
                     <Image
@@ -241,16 +264,9 @@ const ProfilePage = () => {
                       height={200}
                       className="w-full h-32 object-cover rounded-md"
                     />
-                    <p className="text-center mt-2 font-medium">{image.title}</p>
-                    {/* Hiển thị số lượt thích và bình luận */}
+                    <p className="text-center mt-2 font-medium truncate">{image.title}</p>
                     <div className="flex justify-center space-x-4 mt-1 text-gray-600 text-sm">
                       <div className="flex items-center space-x-1">
-                        <span>❤️</span>
-                        <span>{image.likes.length}</span>
-                      </div>
-                      <div className="flex items-center space-x-1">
-                        <span>💬</span>
-                        <span>{image.comments.length}</span>
                       </div>
                     </div>
                   </div>
