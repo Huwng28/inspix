@@ -12,7 +12,7 @@ interface Comment {
     id: string;
     text: string;
     user: { id: string; name: string };
-    timestamp: string; // Thêm thời gian để sắp xếp bình luận
+    timestamp: string;
 }
 
 interface UploadedImage {
@@ -23,7 +23,7 @@ interface UploadedImage {
     link: string;
     userId?: string;
     collectionId?: string;
-    comments: Comment[]; // Thêm trường comments
+    comments: Comment[];
 }
 
 interface ImageData {
@@ -33,7 +33,7 @@ interface ImageData {
     alt: string;
     userId?: string;
     collectionId?: string;
-    comments: Comment[]; // Thêm comments vào ImageData
+    comments: Comment[];
 }
 
 const UserProfilePage = () => {
@@ -42,6 +42,7 @@ const UserProfilePage = () => {
         lastName: string;
         username: string;
         avatar: string;
+        bio: string; // Thêm trường bio
     } | null>(null);
     const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([]);
     const [isImageModalOpen, setIsImageModalOpen] = useState(false);
@@ -63,6 +64,7 @@ const UserProfilePage = () => {
                         lastName: data.lastName || "",
                         username: data.username || data.email?.split("@")[0] || "unknown",
                         avatar: data.avatar || "",
+                        bio: data.bio || "", // Lấy trường bio, mặc định nếu không có
                     });
                 } else {
                     router.push("/404");
@@ -89,7 +91,7 @@ const UserProfilePage = () => {
                         link: data.link || "",
                         userId: data.userId || userId,
                         collectionId: data.collectionId || "",
-                        comments: data.comments || [], // Lấy danh sách bình luận từ Firestore
+                        comments: data.comments || [],
                     });
                 });
 
@@ -152,6 +154,7 @@ const UserProfilePage = () => {
                 <Link href={`/profile/${userId}`}>
                     <p className="text-gray-500 hover:underline">@{userData.username}</p>
                 </Link>
+                <p className="text-gray-600 mt-1">{userData.bio}</p> {/* Hiển thị bio */}
             </div>
 
             <div className="w-full max-w-4xl">
@@ -172,7 +175,6 @@ const UserProfilePage = () => {
                                     className="w-full h-32 object-cover rounded-md"
                                 />
                                 <p className="text-center mt-2 font-medium">{image.title}</p>
-
                             </div>
                         ))
                     ) : (

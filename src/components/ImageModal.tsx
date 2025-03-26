@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useEffect, useState, useCallback } from "react";
 import { db } from "@/lib/firebaseConfig";
-import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { doc, getDoc, updateDoc, deleteDoc, getDocs, collection } from "firebase/firestore";
 import { useAuth } from "@/app/context/AuthContext";
 import { v4 as uuidv4 } from "uuid";
 import Link from "next/link";
@@ -26,6 +26,7 @@ interface ImageData {
   collectionId?: string;
   likes?: string[];
   comments?: Comment[];
+  description?: string; // Thêm trường description
 }
 
 interface ImageModalProps {
@@ -48,6 +49,8 @@ const ImageModal: React.FC<ImageModalProps> = ({ image, onClose, onUpdate }) => 
   const [uploaderAvatar, setUploaderAvatar] = useState<string>("");
   const [uploaderId, setUploaderId] = useState<string>("");
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
+  const [isImageMenuOpen, setIsImageMenuOpen] = useState(false);
+  const [description, setDescription] = useState<string>(""); // Thêm state để lưu description
 
   const fetchImageData = useCallback(async () => {
     if (!image?.id) return;
@@ -65,6 +68,7 @@ const ImageModal: React.FC<ImageModalProps> = ({ image, onClose, onUpdate }) => 
         setHasLiked(user && user.uid ? likesArray.includes(user.uid) : false);
         setComments(commentsArray);
         setTotalComments(commentsArray.length);
+        setDescription(data.description || "Không có mô tả."); // Lấy description từ Firestore
 
         if (image.userId) {
           const userRef = doc(db, `users/${image.userId}`);
@@ -130,7 +134,7 @@ const ImageModal: React.FC<ImageModalProps> = ({ image, onClose, onUpdate }) => 
         await fetchImageData();
       }
     },
-    [image?.id, image?.userId, image?.collectionId, updateParent]
+    [image?.id, image?.userId, image?.collectionId, updateParent, fetchImageData]
   );
 
   const handleLike = async () => {
@@ -194,6 +198,45 @@ const ImageModal: React.FC<ImageModalProps> = ({ image, onClose, onUpdate }) => 
     }
   };
 
+  const handleDeleteImage = async () => {
+    if (!user || !user.uid) return alert("Bạn cần đăng nhập để xóa ảnh!");
+    if (!image?.id || !image?.userId) return alert("Dữ liệu ảnh không hợp lệ!");
+
+    if (user.uid !== image.userId) {
+      alert("Bạn không có quyền xóa ảnh này!");
+      return;
+    }
+
+    if (!confirm("Bạn có chắc muốn xóa ảnh này?")) return;
+
+    try {
+      const repliesRef = collection(db, `publicUploads/${image.id}/replies`);
+      const repliesSnap = await getDocs(repliesRef);
+      const deleteRepliesPromises = repliesSnap.docs.map((replyDoc) =>
+        deleteDoc(doc(db, `publicUploads/${image.id}/replies/${replyDoc.id}`))
+      );
+      await Promise.all(deleteRepliesPromises);
+
+      const publicImageRef = doc(db, `publicUploads/${image.id}`);
+      await deleteDoc(publicImageRef);
+
+      if (image.collectionId) {
+        const userImageRef = doc(
+          db,
+          `users/${image.userId}/collections/${image.collectionId}/images/${image.id}`
+        );
+        await deleteDoc(userImageRef);
+      }
+
+      alert("Ảnh đã được xóa thành công!");
+      window.location.reload();
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Lỗi không xác định";
+      console.error("❌ Lỗi khi xóa ảnh:", errorMessage);
+      alert(`Không thể xóa ảnh: ${errorMessage}`);
+    }
+  };
+
   const handleEditComment = (comment: Comment) => {
     if (!user || (user.uid !== comment.user.id && user.uid !== image.userId)) {
       alert("Bạn không có quyền sửa bình luận này!");
@@ -239,20 +282,55 @@ const ImageModal: React.FC<ImageModalProps> = ({ image, onClose, onUpdate }) => 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-80 flex justify-center items-center z-50 p-4">
       <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] flex flex-col overflow-hidden">
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 text-gray-500 hover:text-gray-800 transition-colors z-10"
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-6 w-6"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
+        <div className="absolute top-4 right-4 flex items-center space-x-2 z-10">
+          {user && user.uid === image.userId && (
+            <div className="relative">
+              <button
+                onClick={() => setIsImageMenuOpen(!isImageMenuOpen)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-6 w-6"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 12h.01M12 12h.01M18 12h.01"
+                  />
+                </svg>
+              </button>
+              {isImageMenuOpen && (
+                <div className="absolute right-0 mt-2 w-24 bg-white border rounded-lg shadow-lg z-20">
+                  <button
+                    onClick={handleDeleteImage}
+                    className="block w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-gray-100"
+                  >
+                    Xóa ảnh
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+          <button
+            onClick={onClose}
+            className="text-gray-500 hover:text-gray-800 transition-colors"
           >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-6 w-6"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
 
         <div className="flex flex-col md:flex-row h-full overflow-y-auto">
           <div className="md:w-2/3 w-full bg-gray-100 flex items-center justify-center p-6">
@@ -299,6 +377,8 @@ const ImageModal: React.FC<ImageModalProps> = ({ image, onClose, onUpdate }) => 
                 </Link>
               </div>
             </div>
+
+            <p className="text-gray-600 mb-4">{description}</p> {/* Hiển thị mô tả ảnh */}
 
             <div className="flex items-center space-x-4 mb-4">
               <div className="flex items-center space-x-2">

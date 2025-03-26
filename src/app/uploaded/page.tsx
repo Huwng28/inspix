@@ -144,7 +144,7 @@ export default function UploadedPage() {
 
     return (
         <div className="min-h-screen bg-gray-100 p-4">
-            <h1 className="text-2xl font-bold mb-4">Tất cả ảnh công khai</h1>
+            <h1 className="text-2xl font-bold mb-4">Người dùng đăng tải</h1>
             <MasonryGrid
                 images={uploadedImages}
                 onImageClick={(image) => setSelectedImage(image)}
